@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: 'AWS::Serverless-2016-10-31'
+Description: |
+  App for sending CodePipeline stage transitions to Slack
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: codepipeline-to-slack
+    Description: App for sending CodePipeline stage transitions to Slack
+    Author: mhlabs
+    SpdxLicenseId: MIT
+    LicenseUrl: LICENSE.txt
+    ReadmeUrl: README.md
+    Labels: ['codepipeline', 'slack', 'productivity']
+    HomePageUrl: https://github.com/mhlabs/codepipeline-to-slack#readme
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/mhlabs/codepipeline-to-slack
+Parameters:
+  SlackToken:
+    Type: String
+  SlackChannel:
+    Type: String
+  EmojiUNKNOWN:
+    Type: String
+    Default: ':grey_question:'
+  EmojiSTARTED:
+    Type: String
+    Default: ':zap:'
+  EmojiSUCCEEDED:
+    Type: String
+    Default: ':heavy_check_mark:'
+  EmojiCANCELED:
+    Type: String
+    Default: ':exclamation:'
+  EmojiFAILED:
+    Type: String
+    Default: ':x:'
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: evb-local
+    Description: Backend for evb-cli's local debugging
+    Author: mhlabs
+    SpdxLicenseId: MIT
+    LicenseUrl: LICENSE.txt
+    ReadmeUrl: README.md
+    Labels: ['eventbridge', 'evb-cli', 'debugging']
+    HomePageUrl: https://github.com/mhlabs/evb-cli#readme
+    SemanticVersion: 0.0.5
+    SourceCodeUrl: https://github.com/mhlabs/evb-cli
+Globals:
+  Function:
+    Timeout: 3
+    Runtime: nodejs12.x
+    Environment:
+      Variables:
+        SlackChannel: !Ref SlackChannel
+        SlackToken: !Ref SlackToken
+        EmojiUNKNOWN: !Ref EmojiUNKNOWN
+        EmojiSTARTED: !Ref EmojiSTARTED
+        EmojiSUCCEEDED: !Ref EmojiSUCCEEDED
+        EmojiCANCELED: !Ref EmojiCANCELED
+        EmojiFAILED: !Ref EmojiFAILED
+Resources:
+  PipelineStarted:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: .
+      Handler: src/PipelineStarted.handler
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Sid: Statement1
+              Effect: Allow
+              Action:
+                - 'codepipeline:GetPipeline'
+              Resource:
+                - '*'
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+      Environment:
+        Variables:
+          Table: !Ref Table
+          SlackToken: !Sub '{{resolve:secretsmanager:${SlackTokenSecret}:SecretString:Token}}'
+      Events:
+        CodePipelineStarted:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: default
+            InputPath: $.detail
+            Pattern:
+              source:
+                - aws.codepipeline
+              detail-type:
+                - CodePipeline Pipeline Execution State Change
+              detail:
+                state:
+                  - STARTED
+  PipelineEnded:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: .
+      Handler: src/PipelineEnded.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+      Environment:
+        Variables:
+          Table: !Ref Table
+          SlackToken: !Sub '{{resolve:secretsmanager:${SlackTokenSecret}:SecretString:Token}}'
+      Events:
+        CodePipelineEnded:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: default
+            InputPath: $.detail
+            Pattern:
+              source:
+                - aws.codepipeline
+              detail-type:
+                - CodePipeline Pipeline Execution State Change
+              detail:
+                state:
+                  - SUCCEEDED
+  StageChanged:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: .
+      Handler: src/StageChanged.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+      Environment:
+        Variables:
+          Table: !Ref Table
+          SlackToken: !Sub '{{resolve:secretsmanager:${SlackTokenSecret}:SecretString:Token}}'
+      Events:
+        CodePipelineStarted:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: default
+            InputPath: $.detail
+            Pattern:
+              source:
+                - aws.codepipeline
+              detail-type:
+                - CodePipeline Stage Execution State Change
+
+  Table:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: ReverseLookupGSI
+          KeySchema:
+            - AttributeName: SK
+              KeyType: HASH
+            - AttributeName: PK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+  SlackTokenSecret:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: MySecretForAppB
+      Description: Slack token used by codepipeline-to-slack
+      SecretString: !Sub '{"Token":"${SlackToken}"}'
+  ExecutionUpdated:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      CodeUri: .
+      Handler: src/StreamHandler.handler
+      MemorySize: 256
+      Timeout: 5
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+      Environment:
+        Variables:
+          Table: !Ref Table
+      Events:
+        DbStream:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt Table.StreamArn
+            StartingPosition: LATEST
+            BatchSize: 1
+            MaximumRetryAttempts: 2
