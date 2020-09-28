@@ -2,7 +2,7 @@
 
 AWS SAM App that sends updates of CodePipeline stage transitions to Slack.
 
-![Demo](images/demo.gif)
+![Demo](https://raw.githubusercontent.com/mhlabs/codepipeline-to-slack/master/images/demo.gif)
 
 ## Prerequisites
 
