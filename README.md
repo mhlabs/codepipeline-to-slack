@@ -11,7 +11,9 @@ AWS SAM App that sends updates of CodePipeline stage transitions to Slack.
 3. Copy the bot user's OAuth token `xoxb-1234...`
 
 ## Setup
-When installing this app there are two required parameters:
+Visit the app page in the [Serverless Application Repository](https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#/create/app?applicationId=arn:aws:serverlessrepo:eu-west-1:751354400372:applications/codepipeline-to-slack)
+
+When installing there are two required parameters:
 1. SlackToken - your Slack bot's OAuth token
 2. SlackChannel - the channel you want to post updates to
 
