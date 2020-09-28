@@ -6,7 +6,6 @@ const token = process.env.SlackToken;
 const web = new WebClient(token);
 
 exports.handler = async (event) => {
-  console.log(event);
   await Execution.put({
     Pipeline: event.pipeline,
     ExecutionId: event["execution-id"],
@@ -14,7 +13,6 @@ exports.handler = async (event) => {
     Status: event.state,
     TypeId: "state",
   });
-  console.log(event.state);
   if (event.state === "SUCCEEDED") {
     const slack = await Execution.query(event["execution-id"], {
       beginsWith: "SLACK#",

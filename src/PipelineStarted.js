@@ -15,7 +15,6 @@ exports.handler = async (event) => {
     channel: process.env.SlackChannel,
     text: `_Starting_: *${event.pipeline}*`,
   });
-  console.log(JSON.stringify(post, null, 2));
 
   const puts = [];
   puts.push(

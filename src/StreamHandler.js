@@ -20,7 +20,6 @@ exports.handler = async (event) => {
         SK: "PIPELINE#state",
       });
       if (pipeline.Item.Status === "SUCCEEDED") {
-        console.log("SUCCESS");
         return;
       }
       const stages = await Execution.query(newImage.PK, {
@@ -37,7 +36,6 @@ exports.handler = async (event) => {
         a.Order > b.Order ? 1 : b.Order > a.Order ? -1 : 0
       );
       for (let i = stages.Items.length - 2; i >= 0; i--) {
-        console.log("x", stages.Items[i + 1]);
         if (stages.Items[i + 1].Status) {
           stages.Items[i].Status = "SUCCEEDED"; // sometimes the STARTED event gets emitted _after_ other states
           await Execution.update(stages.Items[i]);
